@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dynamic Pricing AI</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg:        #0a0a0a;
+      --surface:   #111111;
+      --surface2:  #1a1a1a;
+      --border:    #2a2a2a;
+      --text:      #f0f0f0;
+      --muted:     #555555;
+      --accent:    #ffffff;
+      --accent-d:  rgba(255,255,255,0.07);
+      --green:     #22c55e;
+      --green-d:   rgba(34,197,94,0.12);
+      --yellow:    #eab308;
+      --yellow-d:  rgba(234,179,8,0.12);
+      --red:       #ef4444;
+      --red-d:     rgba(239,68,68,0.12);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
+    }
+    .logo { font-size: 17px; font-weight: 800; letter-spacing: -0.5px; }
+    .logo span { color: var(--accent); }
+
+    .tab-toggle {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .tab-btn {
+      padding: 7px 22px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: all 0.15s;
+    }
+    .tab-btn.active { background: var(--accent); color: #0a0a0a; }
+
+    /* ── Layout ── */
+    .container { max-width: 760px; margin: 0 auto; padding: 28px 16px 80px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 18px;
+    }
+
+    /* ── RL: Inputs ── */
+    .field-label { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+
+    .slider-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; }
+    
+    .scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+
+    .tags { display: flex; gap: 7px; }
+    .tag { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+    .tag-g { background: var(--green-d);  color: var(--green); }
+    .tag-y { background: var(--yellow-d); color: var(--yellow); }
+    .tag-r { background: var(--red-d);    color: var(--red); }
+
+    .time-row { display: flex; gap: 10px; margin-top: 2px; }
+    .time-btn {
+      flex: 1;
+      padding: 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .time-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(255,255,255,0.05); }
+
+    .btn-main {
+      width: 100%;
+      padding: 13px;
+      background: var(--accent);
+      color: #0a0a0a;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: opacity 0.15s;
+    }
+    .btn-main:hover    { opacity: 0.88; }
+    .btn-main:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .err {
+      background: var(--red-d);
+      border: 1px solid var(--red);
+      color: var(--red);
+      border-radius: 7px;
+      padding: 9px 13px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* ── RL: Result ── */
+    #result-card { display: none; }
+
+    .price-hero {
+      text-align: center;
+      padding: 14px 0 22px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 22px;
+    }
+    .ph-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+    .ph-value { font-size: 70px; font-weight: 900; color: var(--accent); line-height: 1; }
+    .ph-sub   { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+    .cmp-row  { display: flex; gap: 10px; margin-bottom: 10px; }
+    .cmp-card { flex: 1; border-radius: 8px; padding: 14px; text-align: center; }
+    .cmp-lbl  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+    .cmp-val  { font-size: 24px; font-weight: 900; }
+    .cmp-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .cmp-fixed { background: var(--yellow-d); border: 1px solid var(--yellow); }
+    .cmp-fixed .cmp-lbl { color: var(--yellow); }
+    .cmp-fixed .cmp-val { color: var(--yellow); }
+
+    .cmp-ai { background: var(--green-d); border: 1px solid var(--green); }
+    .cmp-ai .cmp-lbl { color: var(--green); }
+    .cmp-ai .cmp-val { color: var(--green); }
+
+    .gain {
+      text-align: center;
+      padding: 10px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 18px;
+    }
+    .gain-pos { background: var(--green-d);  color: var(--green);  border: 1px solid var(--green); }
+    .gain-neg { background: var(--yellow-d); color: var(--yellow); border: 1px solid var(--yellow); }
+
+    .chart-note { text-align: center; font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+    /* ── MLOps tab ── */
+    #view-mlops { display: none; }
+
+    .stats-row { display: flex; gap: 10px; margin-bottom: 14px; }
+    .stat {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 700; margin-bottom: 5px; }
+    .stat-val { font-size: 26px; font-weight: 900; }
+    .c-accent  { color: var(--text); }
+    .c-green  { color: var(--green); }
+    .c-yellow { color: var(--yellow); }
+
+    .sec-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .btn-sm {
+      padding: 5px 13px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+    .empty {
+      text-align: center;
+      padding: 50px 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .empty-icon { font-size: 36px; margin-bottom: 10px; }
+
+    .versions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 10px;
+    }
+    .v-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .v-card:hover    { border-color: var(--accent); }
+    .v-card.selected { border-color: var(--accent); background: var(--accent-d); }
+    .v-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .v-ver  { font-size: 12px; font-weight: 700; color: var(--accent); }
+    .v-pill {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .v-pill.done { background: var(--green-d);  color: var(--green); }
+    .v-pill.run  { background: var(--yellow-d); color: var(--yellow); }
+    .v-reward  { font-size: 21px; font-weight: 900; margin-bottom: 2px; }
+    .v-meta    { font-size: 11px; color: var(--muted); }
+
+    #run-detail { display: none; }
+    .charts-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mini-title { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Pricing<span>AI</span></div>
+  <div class="tab-toggle">
+    <button class="tab-btn active" id="tab-rl"    onclick="switchTab('rl')">RL</button>
+    <button class="tab-btn"        id="tab-mlops" onclick="switchTab('mlops')">MLOps</button>
+  </div>
+</header>
+
+<!-- ═══════════ RL VIEW ═══════════ -->
+<div id="view-rl">
+  <div class="container">
+
+    <div class="card">
+      <div class="card-title">Market Conditions</div>
+
+      <div style="margin-bottom:20px">
+        <div class="field-label">Expected Customers Today</div>
+        <div class="slider-row">
+          <input type="range" id="demand" min="1" max="100" value="50" oninput="updateDemand(this.value)">
+          <div id="demand-val">50</div>
+        </div>
+        <div class="scale"><span>1</span><span>100</span></div>
+        <div class="tags">
+          <span class="tag tag-g">1–30 Quiet</span>
+          <span class="tag tag-y">31–70 Normal</span>
+          <span class="tag tag-r">71–100 Packed</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <div class="field-label">Time of Day</div>
+        <div class="time-row">
+          <button class="time-btn active" id="btn-off"  onclick="setTime(0)">◑ Off-Peak</button>
+          <button class="time-btn"        id="btn-peak" onclick="setTime(1)">● Peak Hours</button>
+        </div>
+      </div>
+
+      <button class="btn-main" id="submit-btn" onclick="getPrice()">Get Optimal Price →</button>
+      <div class="err" id="err-box"></div>
+    </div>
+
+    <div class="card" id="result-card">
+      <div class="price-hero">
+        <div class="ph-label">AI Recommended Price</div>
+        <div class="ph-value" id="price-out">—</div>
+        <div class="ph-sub"   id="price-sub">—</div>
+      </div>
+
+      <div class="cmp-row">
+        <div class="cmp-card cmp-fixed">
+          <div class="cmp-lbl">Fixed ₹150</div>
+          <div class="cmp-val" id="fixed-rev">—</div>
+          <div class="cmp-sub" id="fixed-sub">price × orders</div>
+        </div>
+        <div class="cmp-card cmp-ai">
+          <div class="cmp-lbl">AI Price</div>
+          <div class="cmp-val" id="ai-rev">—</div>
+          <div class="cmp-sub" id="ai-sub">price × orders</div>
+        </div>
+      </div>
+
+      <div class="gain" id="gain-banner"></div>
+
+      <canvas id="chart-rl"></canvas>
+      <div class="chart-note">
+        <span style="color:var(--accent)">●</span> white = AI choice &nbsp;
+        <span style="color:var(--yellow)">●</span> yellow = fixed ₹150 &nbsp;
+        curve = revenue at every possible price
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ MLOPS VIEW ═══════════ -->
+<div id="view-mlops">
+  <div class="container">
+
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-lbl">Versions</div>
+        <div class="stat-val c-accent" id="s-total">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Latest Avg Revenue</div>
+        <div class="stat-val" id="s-latest">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Best Avg Revenue</div>
+        <div class="stat-val c-green" id="s-best">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Next Retrain</div>
+        <div class="stat-val c-yellow" id="s-next">—</div>
+      </div>
+    </div>
+
+    <!-- Training curves — all runs overlaid -->
+    <div class="card">
+      <div class="sec-head">
+        <div class="card-title" style="margin:0">Training Curves — All Runs</div>
+        <button class="btn-sm" onclick="loadMlops()">↻ Refresh</button>
+      </div>
+      <div id="curves-wrap">
+        <div class="empty" id="curves-empty">
+          <div class="empty-icon">◎</div>
+          No training runs yet — model will auto-retrain shortly.
+        </div>
+        <canvas id="chart-curves" style="display:none"></canvas>
+      </div>
+    </div>
+
+    <!-- Final reward per version bar chart -->
+    <div class="card">
+      <div class="card-title">Final Reward Comparison</div>
+      <div id="versions-wrap">
+        <div class="empty" id="empty-msg" style="display:none">—</div>
+        <canvas id="chart-versions" style="display:none"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Model Versions</div>
+      <div class="versions-grid" id="versions-grid"></div>
+    </div>
+
+    <div class="card" id="run-detail">
+      <div class="card-title" id="run-detail-title">Run Detail</div>
+      <canvas id="chart-rewards" style="display:none"></canvas>
+      <canvas id="chart-epsilon"></canvas>
+      <div class="chart-note" style="margin-top:8px">
+        Epsilon starts near 1.0 (random exploration) and decays to 0.05 (learned policy)
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── State ──
+  let selTime = 0;
+  let rlChart, vChart, curvesChart, rChart, eChart;
+  let selRunId = null;
+  let mlopsRuns = [];
+  let countdown = null;
+
+  const PALETTE = ['#ffffff', '#22c55e', '#eab308', '#ef4444', '#3b82f6', '#f97316', '#a3a3a3', '#86efac'];
+
+  const PRICES = Array.from({ length: 21 }, (_, i) => 50 + i * 10);
+
+  // ── Tab ──
+  function switchTab(t) {
+    document.getElementById("tab-rl").classList.toggle("active",    t === "rl");
+    document.getElementById("tab-mlops").classList.toggle("active", t === "mlops");
+    document.getElementById("view-rl").style.display    = t === "rl"    ? "block" : "none";
+    document.getElementById("view-mlops").style.display = t === "mlops" ? "block" : "none";
+    if (t === "mlops") loadMlops();
+  }
+
+  // ── RL ──
+  function updateDemand(v) { document.getElementById("demand-val").innerText = v; }
+
+  function setTime(t) {
+    selTime = t;
+    document.getElementById("btn-off").classList.toggle("active",  t === 0);
+    document.getElementById("btn-peak").classList.toggle("active", t === 1);
+  }
+
+  function rev(price, demand, time) {
+    const base  = demand * (time === 1 ? 1.4 : 0.7);
+    const units = Math.max(0, base * (1 - (price - 50) / 200));
+    return price * units;
+  }
+  function sold(price, demand, time) {
+    const base = demand * (time === 1 ? 1.4 : 0.7);
+    return Math.max(0, base * (1 - (price - 50) / 200));
+  }
+
+  async function getPrice() {
+    const demand = parseInt(document.getElementById("demand").value);
+    const btn = document.getElementById("submit-btn");
+    const err = document.getElementById("err-box");
+    btn.disabled = true; btn.innerText = "Calculating..."; err.style.display = "none";
+
+    let data;
+    try {
+      const res = await fetch("/predict_price", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ demand, time: selTime })
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Server error");
+    } catch(e) {
+      err.innerText = "Error: " + e.message; err.style.display = "block";
+      btn.disabled = false; btn.innerText = "Get Optimal Price →"; return;
+    }
+    btn.disabled = false; btn.innerText = "Get Optimal Price →";
+
+    const aiPrice   = data.price;
+    const revenues  = PRICES.map(p => rev(p, demand, selTime));
+    const fixedRev  = rev(150, demand, selTime);
+    const aiRev     = rev(aiPrice, demand, selTime);
+    const unitsSold = sold(aiPrice, demand, selTime);
+    const baseDem   = demand * (selTime === 1 ? 1.4 : 0.7);
+    const timeLabel = selTime === 1 ? "peak ×1.4" : "off-peak ×0.7";
+    const gain      = aiRev - fixedRev;
+    const gainPct   = Math.abs((gain / (fixedRev || 1)) * 100).toFixed(1);
+
+    // Revenue breakdown: price × units = revenue
+    document.getElementById("price-out").innerText = "₹" + aiPrice;
+    document.getElementById("price-sub").innerHTML =
+      `₹${aiPrice} &times; ${Math.round(unitsSold)} orders = ₹${Math.round(aiRev)}`
+      + `<br><span style="font-size:11px;color:var(--muted)">`
+      + `${demand} customers (${timeLabel} → ${Math.round(baseDem)} effective) `
+      + `× price factor → ${Math.round(unitsSold)} will actually order`
+      + `</span>`;
+
+    const fixedSold = sold(150, demand, selTime);
+    document.getElementById("fixed-rev").innerText = "₹" + Math.round(fixedRev);
+    document.getElementById("fixed-sub").innerText = `₹150 × ${Math.round(fixedSold)} orders`;
+    document.getElementById("ai-rev").innerText    = "₹" + Math.round(aiRev);
+    document.getElementById("ai-sub").innerText    = `₹${aiPrice} × ${Math.round(unitsSold)} orders`;
+
+    const b = document.getElementById("gain-banner");
+    if (gain > 0) {
+      b.className = "gain gain-pos";
+      b.innerText = `↑ AI pricing earns ${gainPct}% more  (₹${Math.round(aiRev)} vs ₹${Math.round(fixedRev)})`;
+    } else if (gain === 0) {
+      b.className = "gain gain-neg";
+      b.innerText = `= Same revenue as fixed ₹150 — ₹${aiPrice} and ₹150 are equidistant from optimum (₹125)`;
+    } else {
+      b.className = "gain gain-neg";
+      b.innerText = `← AI chose lower price — volume compensates for lower margin`;
+    }
+
+    document.getElementById("result-card").style.display = "block";
+
+    const colors = PRICES.map(p =>
+      p === aiPrice ? "#ffffff" : p === 150 ? "#eab308" : "#2a2a2a"
+    );
+    const radii = PRICES.map(p => p === aiPrice || p === 150 ? 8 : 3);
+
+    if (rlChart) rlChart.destroy();
+    rlChart = new Chart(document.getElementById("chart-rl"), {
+      type: "line",
+      data: {
+        labels: PRICES.map(p => "₹" + p),
+        datasets: [{ data: revenues, borderColor: "#333", backgroundColor: "rgba(255,255,255,0.03)",
+          fill: true, tension: 0.45, pointRadius: radii,
+          pointBackgroundColor: colors, pointBorderColor: colors }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: `Revenue vs Price  (${demand} customers, ${selTime===1?"peak":"off-peak"})`,
+            color: "#555", font: { size: 12 } },
+          tooltip: { callbacks: { label: ctx => " ₹" + Math.round(ctx.raw) + " revenue" } }
+        },
+        scales: {
+          x: { ticks: { color: "#555" }, grid: { color: "#1a1a1a" } },
+          y: { ticks: { color: "#555" }, grid: { color: "#1a1a1a" }, beginAtZero: true,
+            title: { display: true, text: "Revenue (₹)", color: "#555" } }
+        }
+      }
+    });
+
+    document.getElementById("result-card").scrollIntoView({ behavior: "smooth" });
+  }
+
+  // ── MLOps ──
+  async function loadMlops() {
+    const res  = await fetch("/api/mlops");
+    const data = await res.json();
+    mlopsRuns  = data.runs || [];
+
+    // Stats — only count FINISHED runs, divide by 50 for per-decision revenue
+    const finished = mlopsRuns.filter(r => r.status === "FINISHED");
+    document.getElementById("s-total").innerText = mlopsRuns.length || "—";
+    if (finished.length > 0) {
+      const latest = finished[finished.length - 1];
+      const best   = Math.max(...finished.map(r => r.final_reward));
+      document.getElementById("s-latest").innerText = "₹" + Math.round(latest.final_reward / 50);
+      document.getElementById("s-best").innerText   = "₹" + Math.round(best / 50);
+    } else {
+      document.getElementById("s-latest").innerText = "—";
+      document.getElementById("s-best").innerText   = "—";
+    }
+
+    // Countdown
+    if (countdown) clearInterval(countdown);
+    if (data.next_retrain_in != null) {
+      let rem = data.next_retrain_in;
+      const el = document.getElementById("s-next");
+      el.innerText = rem + "s";
+      countdown = setInterval(() => {
+        rem--;
+        el.innerText = rem > 0 ? rem + "s" : "Soon";
+        if (rem <= 0) clearInterval(countdown);
+      }, 1000);
+    } else {
+      document.getElementById("s-next").innerText = "—";
+    }
+
+    // Fetch all runs' metric histories in parallel
+    let runsWithMetrics = mlopsRuns.map(r => ({ ...r, rewards: [], epsilons: [] }));
+    try {
+      const metricsArr = await Promise.all(
+        mlopsRuns.map(r => fetch(`/api/mlops/run/${r.run_id}`).then(r => r.json()))
+      );
+      runsWithMetrics = mlopsRuns.map((r, i) => ({
+        ...r,
+        rewards:  metricsArr[i].rewards  || [],
+        epsilons: metricsArr[i].epsilons || [],
+      }));
+    } catch(e) {
+      console.error("Failed to fetch run metrics:", e);
+    }
+
+    renderTrainingCurves(runsWithMetrics);
+    renderVersionsChart();
+    renderVersionCards(runsWithMetrics);
+  }
+
+  function renderTrainingCurves(runs) {
+    const empty = document.getElementById("curves-empty");
+    const cv    = document.getElementById("chart-curves");
+
+    const hasData = runs.some(r => r.rewards.length > 0);
+    if (!hasData) { empty.style.display = "block"; cv.style.display = "none"; return; }
+    empty.style.display = "none"; cv.style.display = "block";
+
+    // Normalize x-axis to % of training so all runs span the full chart
+    const maxPts = Math.max(...runs.map(r => r.rewards.length));
+    const labels = Array.from({ length: maxPts }, (_, i) => Math.round((i + 1) / maxPts * 100) + "%");
+
+    const datasets = runs.map((r, i) => {
+      const color  = PALETTE[i % PALETTE.length];
+      const isLast = i === runs.length - 1;
+      // Map each checkpoint to its proportional slot in maxPts buckets
+      const data = Array(maxPts).fill(null);
+      r.rewards.forEach((m, idx) => {
+        const slot = Math.round((idx + 1) / r.rewards.length * maxPts) - 1;
+        data[Math.min(slot, maxPts - 1)] = Math.round(m.value / 50);
+      });
+      return {
+        label:                `v${r.version} (${r.episodes} ep)`,
+        data,
+        borderColor:          color,
+        backgroundColor:      "transparent",
+        borderWidth:          isLast ? 2.5 : 1.5,
+        pointRadius:          isLast ? 4 : 2,
+        pointBackgroundColor: color,
+        tension:              0.4,
+        spanGaps:             true,
+      };
+    });
+
+    if (curvesChart) curvesChart.destroy();
+    curvesChart = new Chart(cv, {
+      type: "line",
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: true, labels: { color: "#888", boxWidth: 12, font: { size: 11 } } },
+          title:  { display: true, text: "Reward Curve per Training Run — each line = one version",
+                    color: "#555", font: { size: 12 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ₹${Math.round(ctx.raw)}` } }
+        },
+        scales: {
+          x: { ticks: { color: "#555", maxTicksLimit: 10 }, grid: { color: "#1a1a1a" },
+               title: { display: true, text: "Training Progress", color: "#555" } },
+          y: { ticks: { color: "#555" }, grid: { color: "#1a1a1a" },
+               title: { display: true, text: "Avg Reward", color: "#555" } }
+        }
+      }
+    });
+  }
+
+  function renderVersionsChart() {
+    const empty = document.getElementById("empty-msg");
+    const cv    = document.getElementById("chart-versions");
+
+    if (mlopsRuns.length === 0) {
+      empty.style.display = "block"; cv.style.display = "none"; return;
+    }
+    empty.style.display = "none"; cv.style.display = "block";
+
+    const best = Math.max(...mlopsRuns.map(r => r.final_reward));
+    if (vChart) vChart.destroy();
+    vChart = new Chart(cv, {
+      type: "bar",
+      data: {
+        labels: mlopsRuns.map(r => "v" + r.version),
+        datasets: [{
+          data: mlopsRuns.map(r => Math.round(r.final_reward / 50)),
+          backgroundColor: mlopsRuns.map(r =>
+            r.final_reward >= best * 0.98 ? "rgba(34,197,94,0.6)" : "rgba(255,255,255,0.15)"
+          ),
+          borderColor: mlopsRuns.map(r =>
+            r.final_reward >= best * 0.98 ? "#22c55e" : "#ffffff"
+          ),
+          borderWidth: 1,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => " Reward: " + ctx.raw } }
+        },
+        scales: {
+          x: { ticks: { color: "#555" }, grid: { color: "#1a1a1a" } },
+          y: { ticks: { color: "#555" }, grid: { color: "#1a1a1a" }, beginAtZero: false }
+        }
+      }
+    });
+  }
+
+  let cachedRunsWithMetrics = [];
+
+  function renderVersionCards(runs) {
+    if (runs) cachedRunsWithMetrics = runs;
+    const grid = document.getElementById("versions-grid");
+    if (cachedRunsWithMetrics.length === 0) {
+      grid.innerHTML = `<div style="color:var(--muted);font-size:13px;">No versions yet.</div>`;
+      return;
+    }
+    grid.innerHTML = [...cachedRunsWithMetrics].reverse().map((r, i) => {
+      const color = PALETTE[(cachedRunsWithMetrics.length - 1 - i) % PALETTE.length];
+      return `
+        <div class="v-card ${r.run_id === selRunId ? 'selected' : ''}"
+             onclick="selectRun('${r.run_id}', ${r.version})">
+          <div class="v-head">
+            <span class="v-ver" style="color:${color}">v${r.version}</span>
+            <span class="v-pill ${r.status === 'FINISHED' ? 'done' : 'run'}">
+              ${r.status === 'FINISHED' ? '✓ done' : '● running'}
+            </span>
+          </div>
+          <div class="v-reward">₹${Math.round(r.final_reward / 50)}</div>
+          <div class="v-meta">${r.episodes} episodes</div>
+          <div class="v-meta">${new Date(r.timestamp).toLocaleTimeString()}</div>
+        </div>`;
+    }).join("");
+  }
+
+  function selectRun(runId, version) {
+    selRunId = runId;
+    renderVersionCards();
+
+    const run = cachedRunsWithMetrics.find(r => r.run_id === runId);
+    if (!run || !run.epsilons.length) return;
+
+    const ri = cachedRunsWithMetrics.findIndex(r => r.run_id === runId);
+    const color = PALETTE[ri % PALETTE.length];
+
+    document.getElementById("run-detail").style.display = "block";
+    document.getElementById("run-detail-title").innerText = `v${version} — Epsilon Decay`;
+
+    const eSteps = run.epsilons.map(m => "ep" + m.step);
+    const eVals  = run.epsilons.map(m => m.value); 
+
+    if (eChart) eChart.destroy();
+    eChart = new Chart(document.getElementById("chart-epsilon"), {
+      type: "line",
+      data: {
+        labels: eSteps,
+        datasets: [{ data: eVals, borderColor: color,
+          backgroundColor: color + "18", fill: true, tension: 0.4, pointRadius: 3 }]
+      },
+      options: miniOpts("Episode", "Epsilon (exploration rate)")
+    });
+
+    // Hide the reward sub-chart since it's already in the combined chart
+    document.getElementById("chart-rewards").style.display = "none";
+
+    document.getElementById("run-detail").scrollIntoView({ behavior: "smooth" });
+  }
+
+  function miniOpts(xLabel, yLabel) {
+    return {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#555", maxTicksLimit: 5 }, grid: { color: "#1a1a1a" },
+             title: { display: true, text: xLabel, color: "#555" } },
+        y: { ticks: { color: "#555" }, grid: { color: "#1a1a1a" },
+             title: { display: true, text: yLabel, color: "#555" } }
+      }
+    };
+  }
+</script>
+</body>
+</html>
