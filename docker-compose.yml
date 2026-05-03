@@ -6,4 +6,5 @@ services:
     volumes:
       - ./models:/app/models        # model persists between container restarts
       - ./mlruns:/app/mlruns        # MLflow runs persist
+      - ./templates:/app/templates  # live reload — no rebuild needed for UI changes
     restart: unless-stopped

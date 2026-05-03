@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, make_response
 import numpy as np
 import os
 import sys
@@ -49,7 +49,9 @@ scheduler.add_job(retrain_job, "interval", seconds=RETRAIN_INTERVAL)
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    resp = make_response(render_template("index.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.route("/predict_price", methods=["POST"])
