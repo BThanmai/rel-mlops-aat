@@ -309,7 +309,7 @@
 
       <div class="cmp-row">
         <div class="cmp-card cmp-fixed">
-          <div class="cmp-lbl">Fixed ₹150</div>
+          <div class="cmp-lbl">Fixed ₹100</div>
           <div class="cmp-val" id="fixed-rev">—</div>
           <div class="cmp-sub" id="fixed-sub">price × orders</div>
         </div>
@@ -325,7 +325,7 @@
       <canvas id="chart-rl"></canvas>
       <div class="chart-note">
         <span style="color:var(--accent)">●</span> white = AI choice &nbsp;
-        <span style="color:var(--yellow)">●</span> yellow = fixed ₹150 &nbsp;
+        <span style="color:var(--yellow)">●</span> yellow = fixed ₹100 &nbsp;
         curve = revenue at every possible price
       </div>
     </div>
@@ -460,7 +460,7 @@
 
     const aiPrice   = data.price;
     const revenues  = PRICES.map(p => rev(p, demand, selTime));
-    const fixedRev  = rev(150, demand, selTime);
+    const fixedRev  = rev(100, demand, selTime);
     const aiRev     = rev(aiPrice, demand, selTime);
     const unitsSold = sold(aiPrice, demand, selTime);
     const baseDem   = demand * (selTime === 1 ? 1.4 : 0.7);
@@ -477,9 +477,9 @@
       + `× price factor → ${Math.round(unitsSold)} will actually order`
       + `</span>`;
 
-    const fixedSold = sold(150, demand, selTime);
+    const fixedSold = sold(100, demand, selTime);
     document.getElementById("fixed-rev").innerText = "₹" + Math.round(fixedRev);
-    document.getElementById("fixed-sub").innerText = `₹150 × ${Math.round(fixedSold)} orders`;
+    document.getElementById("fixed-sub").innerText = `₹100 × ${Math.round(fixedSold)} orders`;
     document.getElementById("ai-rev").innerText    = "₹" + Math.round(aiRev);
     document.getElementById("ai-sub").innerText    = `₹${aiPrice} × ${Math.round(unitsSold)} orders`;
 
@@ -489,18 +489,18 @@
       b.innerText = `↑ AI pricing earns ${gainPct}% more  (₹${Math.round(aiRev)} vs ₹${Math.round(fixedRev)})`;
     } else if (gain === 0) {
       b.className = "gain gain-neg";
-      b.innerText = `= Same revenue as fixed ₹150 — ₹${aiPrice} and ₹150 are equidistant from optimum (₹125)`;
+      b.innerText = `= Same revenue as fixed ₹100 — ₹${aiPrice} and ₹100 are equidistant from optimum (₹125)`;
     } else {
       b.className = "gain gain-neg";
-      b.innerText = `← AI chose lower price — volume compensates for lower margin`;
+      b.innerText = `↑ AI pricing earns ${gainPct}% more than fixed ₹100  (₹${Math.round(aiRev)} vs ₹${Math.round(fixedRev)})`;
     }
 
     document.getElementById("result-card").style.display = "block";
 
     const colors = PRICES.map(p =>
-      p === aiPrice ? "#ffffff" : p === 150 ? "#eab308" : "#2a2a2a"
+      p === aiPrice ? "#ffffff" : p === 100 ? "#eab308" : "#2a2a2a"
     );
-    const radii = PRICES.map(p => p === aiPrice || p === 150 ? 8 : 3);
+    const radii = PRICES.map(p => p === aiPrice || p === 100 ? 8 : 3);
 
     if (rlChart) rlChart.destroy();
     rlChart = new Chart(document.getElementById("chart-rl"), {

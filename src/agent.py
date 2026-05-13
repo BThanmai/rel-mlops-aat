@@ -9,10 +9,10 @@ class QLearningAgent:
     def __init__(self):
         self.q_table = np.zeros((DEMAND_BINS, TIME_STATES, NUM_ACTIONS))
         self.lr = 0.1
-        self.gamma = 0.9
+        self.gamma = 0.0  # contextual bandit — each step is independent, no future reward chain
         self.epsilon = 1.0
         self.epsilon_min = 0.05
-        self.epsilon_decay = 0.9999  # slower decay → proper exploration across all 5000 episodes
+        self.epsilon_decay = 0.99993  # reaches 0.05 at ~50k steps = end of 1000-ep retrain
 
     def choose_action(self, state):
         if np.random.rand() < self.epsilon:
