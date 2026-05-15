@@ -116,15 +116,19 @@ def mlops_data():
         )
 
         result = []
-        for i, run in enumerate(runs):
+        version = 1
+        for run in runs:
+            if "final_avg_reward" not in run.data.metrics:
+                continue
             result.append({
-                "version": i + 1,
+                "version": version,
                 "run_id": run.info.run_id,
                 "timestamp": run.info.start_time,
                 "status": run.info.status,
-                "final_reward": run.data.metrics.get("final_avg_reward", 0),
+                "final_reward": run.data.metrics["final_avg_reward"],
                 "episodes": run.data.params.get("episodes", "?"),
             })
+            version += 1
 
         if last_retrain_time is not None:
             remaining = RETRAIN_INTERVAL - (time.time() - last_retrain_time)

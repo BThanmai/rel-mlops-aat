@@ -76,7 +76,8 @@ with mlflow.start_run() as run:
         )
         top10_ids = {r.info.run_id[:8] for r in all_runs[:10]}
         for r in all_runs[10:]:
-            client.delete_run(r.info.run_id)
+            if r.info.run_id != run_id:
+                client.delete_run(r.info.run_id)
         for fname in os.listdir(archive_dir):
             if fname.endswith(".npy") and fname.replace("q_table_", "").replace(".npy", "") not in top10_ids:
                 os.remove(os.path.join(archive_dir, fname))
