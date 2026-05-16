@@ -352,7 +352,7 @@
       </div>
       <div class="stat">
         <div class="stat-lbl">Next Retrain</div>
-        <div class="stat-val c-yellow" id="s-next">—</div>
+        <div class="stat-val c-yellow" id="s-next">120</div>
       </div>
     </div>
 
@@ -427,14 +427,20 @@
     document.getElementById("btn-peak").classList.toggle("active", t === 1);
   }
 
+  function marketPrice(demand, time) {
+    return Math.min(250, 100 + 1.1 * demand + (time === 1 ? 25 : 0));
+  }
+  function effectiveDemand(demand, time) {
+    return demand * (time === 1 ? 1.4 : 0.7);
+  }
   function rev(price, demand, time) {
-    const base  = demand * (time === 1 ? 1.4 : 0.7);
-    const units = Math.max(0, base * (1 - (price - 50) / 200));
+    const units = sold(price, demand, time);
     return price * units;
   }
   function sold(price, demand, time) {
-    const base = demand * (time === 1 ? 1.4 : 0.7);
-    return Math.max(0, base * (1 - (price - 50) / 200));
+    const base = effectiveDemand(demand, time);
+    const target = marketPrice(demand, time);
+    return Math.max(0, base * (1 - price / (2 * target)));
   }
 
   async function getPrice() {
@@ -463,7 +469,7 @@
     const fixedRev  = rev(100, demand, selTime);
     const aiRev     = rev(aiPrice, demand, selTime);
     const unitsSold = sold(aiPrice, demand, selTime);
-    const baseDem   = demand * (selTime === 1 ? 1.4 : 0.7);
+    const baseDem   = effectiveDemand(demand, selTime);
     const timeLabel = selTime === 1 ? "peak ×1.4" : "off-peak ×0.7";
     const gain      = aiRev - fixedRev;
     const gainPct   = Math.abs((gain / (fixedRev || 1)) * 100).toFixed(1);
@@ -489,10 +495,10 @@
       b.innerText = `↑ AI pricing earns ${gainPct}% more  (₹${Math.round(aiRev)} vs ₹${Math.round(fixedRev)})`;
     } else if (gain === 0) {
       b.className = "gain gain-neg";
-      b.innerText = `= Same revenue as fixed ₹100 — ₹${aiPrice} and ₹100 are equidistant from optimum (₹125)`;
+      b.innerText = `= Same revenue as fixed ₹100`;
     } else {
       b.className = "gain gain-neg";
-      b.innerText = `↑ AI pricing earns ${gainPct}% more than fixed ₹100  (₹${Math.round(aiRev)} vs ₹${Math.round(fixedRev)})`;
+      b.innerText = `↓ AI pricing earns ${gainPct}% less than fixed ₹100  (₹${Math.round(aiRev)} vs ₹${Math.round(fixedRev)})`;
     }
 
     document.getElementById("result-card").style.display = "block";
@@ -552,16 +558,21 @@
     // Countdown
     if (countdown) clearInterval(countdown);
     if (data.next_retrain_in != null) {
-      let rem = data.next_retrain_in;
+      const intervalSeconds = data.retrain_interval || 120;
+      let rem = Math.min(intervalSeconds, Math.max(0, data.next_retrain_in));
       const el = document.getElementById("s-next");
-      el.innerText = rem + "s";
+      el.innerText = String(rem);
       countdown = setInterval(() => {
-        rem--;
-        el.innerText = rem > 0 ? rem + "s" : "Soon";
-        if (rem <= 0) clearInterval(countdown);
+        rem = Math.max(0, rem - 1);
+        el.innerText = String(rem);
+        if (rem <= 0) {
+          clearInterval(countdown);
+          countdown = null;
+          loadMlops();
+        }
       }, 1000);
     } else {
-      document.getElementById("s-next").innerText = "—";
+      document.getElementById("s-next").innerText = "0";
     }
 
     // Fetch all runs' metric histories in parallel

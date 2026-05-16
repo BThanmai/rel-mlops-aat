@@ -7,9 +7,12 @@ import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(ROOT, "src")
 TRAIN_SCRIPT = os.path.join(ROOT, "src", "train.py")
 MODEL_PATH = os.path.join(ROOT, "models", "q_table.npy")
-PRICES = np.linspace(50, 250, 21)
+sys.path.insert(0, SRC)
+
+from env import PRICES, demand_bin
 
 import mlflow
 mlflow.set_tracking_uri(f"file://{ROOT}/mlruns")
@@ -44,7 +47,12 @@ def retrain_job():
 
 from apscheduler.schedulers.background import BackgroundScheduler
 scheduler = BackgroundScheduler()
-scheduler.add_job(retrain_job, "interval", seconds=RETRAIN_INTERVAL)
+retrain_scheduler_job = scheduler.add_job(
+    retrain_job,
+    "interval",
+    seconds=RETRAIN_INTERVAL,
+    id="scheduled_retrain",
+)
 
 
 @app.route("/")
@@ -69,8 +77,8 @@ def predict():
         if time_val not in (0, 1):
             return jsonify({"error": "time must be 0 (off-peak) or 1 (peak)"}), 400
 
-        demand_bin = min(demand_raw // 10, 9)
-        state = (demand_bin, time_val)
+        demand_level = demand_bin(demand_raw)
+        state = (demand_level, time_val)
 
         with model_lock:
             action = int(np.argmax(q_table[state]))
@@ -81,7 +89,7 @@ def predict():
         return jsonify({
             "price": price,
             "explanation": {
-                "state": {"demand_level": demand_bin, "time": "peak" if time_val == 1 else "off-peak"},
+                "state": {"demand_level": demand_level, "time": "peak" if time_val == 1 else "off-peak"},
                 "action_taken": action,
                 "price_chosen": price,
                 "q_values": q_vals,
@@ -108,7 +116,11 @@ def mlops_data():
         client = mlflow.tracking.MlflowClient()
         experiment = client.get_experiment_by_name("dynamic_pricing")
         if not experiment:
-            return jsonify({"runs": [], "next_retrain_in": None})
+            return jsonify({
+                "runs": [],
+                "next_retrain_in": RETRAIN_INTERVAL,
+                "retrain_interval": RETRAIN_INTERVAL,
+            })
 
         runs = client.search_runs(
             experiment_ids=[experiment.experiment_id],
@@ -130,13 +142,20 @@ def mlops_data():
             })
             version += 1
 
-        if last_retrain_time is not None:
+        next_run_time = getattr(retrain_scheduler_job, "next_run_time", None)
+        if next_run_time is not None:
+            remaining = next_run_time.timestamp() - time.time()
+        elif last_retrain_time is not None:
             remaining = RETRAIN_INTERVAL - (time.time() - last_retrain_time)
         else:
             remaining = RETRAIN_INTERVAL - (time.time() - app_start_time)
-        next_retrain = max(0, int(remaining))
+        next_retrain = max(0, int(round(remaining)))
 
-        return jsonify({"runs": result, "next_retrain_in": next_retrain})
+        return jsonify({
+            "runs": result,
+            "next_retrain_in": next_retrain,
+            "retrain_interval": RETRAIN_INTERVAL,
+        })
 
     except Exception as e:
         return jsonify({"error": str(e), "runs": []})
